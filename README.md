@@ -1,4 +1,5 @@
 # CalendLy
+*NOTE Google Oauth page requires me to verify my service, so in the meantime I have granted access to the whole 15-113 staff to use CalendLy
 
 A web-based utility that converts text schedules—like syllabuses, shift rotations, or workout routines—into Google Calendar events.
 
