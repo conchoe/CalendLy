@@ -32,9 +32,9 @@ def ai_extract_schedule(text: str):
     1. If a year is not mentioned, use {today.year}.
     2. If a specific start date is not mentioned, assume the events start as soon as possible after {today} or starting on {today}.
        only start on a day in the week that is specified in the Text.
-       if {time.hour} is less than 4, then assume tomorrow means today.
+       if {time.hour} is less than 4, then assume "tomorrow" means {today.day}.
     3. If user provides only one event, then have the end date be 7 days after {today}.
-    4. If the user provides a list of events, return them in a list called "classes". 
+    4. If the user provides a list of events, return them in a list called "classes".
     (Note: keep the key name "classes" for code compatibility, but treat them as generic events).
     
     Return ONLY JSON with these keys:
