@@ -11,6 +11,7 @@ from fastapi.templating import Jinja2Templates
 load_dotenv()
 app = FastAPI()
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 # In-memory store (Note: This clears if the server restarts)
@@ -74,7 +75,7 @@ async def run_process(payload: dict):
     return {"auth_url": auth_url}
 
 @app.get("/oauth/callback")
-def oauth_callback(code: str):
+def oauth_callback(request: Request, code: str):
     # 1. Exchange Code for Token
     token_resp = requests.post("https://oauth2.googleapis.com/token", data={
         "code": code,
@@ -94,7 +95,7 @@ def oauth_callback(code: str):
 
     # --- STEP A: CREATE THE NEW CALENDAR ---
     calendar_body = {
-        "summary": "My AI Class Schedule",  # This is the name of the new calendar
+        "summary": "My AI Schedule",  # This is the name of the new calendar
         "timeZone": "America/New_York"
     }
     
@@ -132,10 +133,8 @@ def oauth_callback(code: str):
         except Exception as e:
             results.append(f"Failed to add {item.get('title')}: {str(e)}")
 
-    return HTMLResponse(f"""
-        <h1>Success!</h1>
-        <p>A new calendar <b>'My AI Class Schedule'</b> has been created.</p>
-        <p>{'<br>'.join(results)}</p>
-        <br>
-        <a href="https://calendar.google.com/">Open Google Calendar</a>
-    """)
+    return templates.TemplateResponse("success.html", {
+        "request": request,
+        "results": results,
+        "calendar_name": "My AI Schedule"
+    })
