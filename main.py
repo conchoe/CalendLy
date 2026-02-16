@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from openai import OpenAI
-from datetime import date, time
+from datetime import datetime, date, time
 from fastapi.templating import Jinja2Templates
 
 load_dotenv()
@@ -20,23 +20,40 @@ TOKEN_STORE = {}
 # --- AI PARSING LOGIC ---
 def ai_extract_schedule(text: str):
     today = date.today() 
-    
+    now = datetime.now()
+    today_date = now.strftime("%Y-%m-%d")
+    day_of_week = now.strftime("%A")
+    current_hour = now.hour
+
     prompt = f"""
-    Today's date is {today}. 
-    The time is {time.hour}
-    
-    Extract the following schedule or list of recurring events into a JSON object.
-    Text: "{text}"
-    
-    INSTRUCTIONS:
-    1. If a year is not mentioned, use {today.year}.
-    2. If a specific start date is not mentioned, assume the events start as soon as possible after {today} or starting on {today}.
-       only start on a day in the week that is specified in the Text.
-       if {time.hour} is less than 4, then assume "tomorrow" means {today.day}.
-    3. If user provides only one event, then have the end date be 7 days after {today}.
-    4. If the user provides a list of events, return them in a list called "classes".
-    (Note: keep the key name "classes" for code compatibility, but treat them as generic events).
-    
+    Today is {day_of_week}, {today_date}. 
+    The current time is {current_hour}:00.
+
+    Extract the event(s) from the User Text into a JSON object.
+
+    ### RULES:
+    1. **Relative Dates**: 
+    - If user says "tomorrow" and it's currently before 4 AM, "tomorrow" means today ({today_date}). 
+    - Otherwise, "tomorrow" is the calendar day after {today_date}.
+    2. **Date Inference**: Use {today_date} as the base. If no year is given, use {now.year}.
+    3. **Time Formatting**: Convert all times to 24-hour HH:MM format (e.g., "4-6" becomes 16:00 and 18:00).
+    4. **Recurrence**: 
+    - If it's a one-time event (like "study tomorrow"), set 'days' to the 2-letter code for that specific day and 'end_date' to the same as 'start_date'.
+    - If it's a list/schedule, use the 'classes' array.
+    5. **Output**: Return ONLY JSON.
+    6. **Missing End Dates**: 
+   - If the user provides a single one-time event (e.g., "Study tomorrow"), set 'end_date' equal to 'start_date'.
+   - If the user provides a recurring event (e.g., "Gym every Monday") but NO end date, set 'end_date' to 3 months from {today_date}.
+
+    ### EXAMPLES:
+    - Text: "Study tomorrow from 4-6"
+    Result: {{"title": "Study", "days": ["TU"], "start_time": "16:00", "end_time": "18:00", "start_date": "2026-02-17", "end_date": "2026-02-17"}}
+
+    - Text: "Gym MWF 8am"
+    Result: {{"title": "Gym", "days": ["MO", "WE", "FR"], "start_time": "08:00", "end_time": "09:00", "start_date": "{today_date}", "end_date": "2026-05-01"}}
+
+    User Text: "{text}"
+
     Return ONLY JSON with these keys:
     title, days (list of 2-letter codes: MO, TU, WE, TH, FR, SA, SU), 
     start_time (HH:MM), end_time (HH:MM), 
@@ -113,26 +130,42 @@ def oauth_callback(request: Request, code: str):
     if not new_calendar_id:
         return {"error": "Failed to create new calendar", "details": create_cal_res}
 
-    # --- STEP B: ADD EVENTS TO THAT NEW CALENDAR ---
+# --- STEP B: ADD EVENTS TO THAT NEW CALENDAR ---
     classes_to_add = parsed_response.get("classes", [parsed_response])
     results = []
     
     for item in classes_to_add:
         try:
+            # 1. Basic event structure
             event = {
-                "summary": item.get("title", "New Class"),
-                "start": {"dateTime": f"{item['start_date']}T{item['start_time']}:00", "timeZone": "America/New_York"},
-                "end": {"dateTime": f"{item['start_date']}T{item['end_time']}:00", "timeZone": "America/New_York"},
-                "recurrence": [f"RRULE:FREQ=WEEKLY;BYDAY={','.join(item['days'])};UNTIL={item['end_date'].replace('-', '')}T235959Z"]
+                "summary": item.get("title", "New Event"),
+                "start": {
+                    "dateTime": f"{item['start_date']}T{item['start_time']}:00", 
+                    "timeZone": "America/New_York"
+                },
+                "end": {
+                    "dateTime": f"{item['start_date']}T{item['end_time']}:00", 
+                    "timeZone": "America/New_York"
+                }
             }
 
-            # We use {new_calendar_id} instead of 'primary' here
+            # 2. Only add recurrence if it's meant to repeat
+            # Check if the end_date is different from the start_date OR if there are multiple days
+            if item['start_date'] != item['end_date'] or len(item['days']) > 1:
+                # Format the UNTIL date for Google (YYYYMMDDTHHMMSSZ)
+                until_date = item['end_date'].replace('-', '')
+                event["recurrence"] = [
+                    f"RRULE:FREQ=WEEKLY;BYDAY={','.join(item['days'])};UNTIL={until_date}T235959Z"
+                ]
+
+            # 3. Post to Google
             requests.post(
                 f"https://www.googleapis.com/calendar/v3/calendars/{new_calendar_id}/events",
                 headers=headers,
                 json=event
             )
             results.append(f"Added: {item.get('title')}")
+            
         except Exception as e:
             results.append(f"Failed to add {item.get('title')}: {str(e)}")
 
