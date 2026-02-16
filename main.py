@@ -32,6 +32,7 @@ def ai_extract_schedule(text: str):
     Extract the event(s) from the User Text into a JSON object.
 
     ### RULES:
+    Provide a 'calendar_name' (a creative, short name for this specific group of events, e.g., "Spring Semester 2026", "Study Grind", or "Gym Routine").
     1. **Relative Dates**: 
     - If user says "tomorrow" and it's currently before 4 AM, "tomorrow" means today ({today_date}). 
     - Otherwise, "tomorrow" is the calendar day after {today_date}.
@@ -55,6 +56,7 @@ def ai_extract_schedule(text: str):
     User Text: "{text}"
 
     Return ONLY JSON with these keys:
+    calendar_name (A creative name for the calendar)
     title, days (list of 2-letter codes: MO, TU, WE, TH, FR, SA, SU), 
     start_time (HH:MM), end_time (HH:MM), 
     start_date (YYYY-MM-DD), end_date (YYYY-MM-DD).
@@ -108,6 +110,9 @@ def oauth_callback(request: Request, code: str):
     access_token = token_resp.get("access_token")
     parsed_response = TOKEN_STORE.get("pending_event")
 
+    #get calendar name
+    calendar_name = parsed_response.get("calendar_name", "My AI Schedule")
+
     if not access_token or not parsed_response:
         return {"error": "Authentication failed or data lost."}
 
@@ -115,7 +120,7 @@ def oauth_callback(request: Request, code: str):
 
     # --- STEP A: CREATE THE NEW CALENDAR ---
     calendar_body = {
-        "summary": "My AI Schedule",  # This is the name of the new calendar
+        "summary": calendar_name,  # This is the name of the new calendar
         "timeZone": "America/New_York"
     }
     
@@ -172,5 +177,5 @@ def oauth_callback(request: Request, code: str):
     return templates.TemplateResponse("success.html", {
         "request": request,
         "results": results,
-        "calendar_name": "My AI Schedule"
+        "calendar_name": calendar_name
     })
