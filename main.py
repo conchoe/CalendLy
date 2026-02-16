@@ -55,13 +55,21 @@ def ai_extract_schedule(text: str):
 
     User Text: "{text}"
 
-    Return ONLY JSON with these keys:
-    calendar_name (A creative name for the calendar)
-    title, days (list of 2-letter codes: MO, TU, WE, TH, FR, SA, SU), 
-    start_time (HH:MM), end_time (HH:MM), 
-    start_date (YYYY-MM-DD), end_date (YYYY-MM-DD).
+    Return ONLY a JSON object with exactly this structure:
+    {
+        "calendar_name": "Creative Name",
+        "classes": [
+            {
+            "title": "Event Name",
+            "days": ["MO", "TU"],
+            "start_time": "HH:MM",
+            "end_time": "HH:MM",
+            "start_date": "YYYY-MM-DD",
+            "end_date": "YYYY-MM-DD"
+            }
+        ]
+    }
     """
-    
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
