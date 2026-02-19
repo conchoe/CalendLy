@@ -56,19 +56,19 @@ def ai_extract_schedule(text: str):
     User Text: "{text}"
 
     Return ONLY a JSON object with exactly this structure:
-    {
+    {{
         "calendar_name": "Creative Name",
         "classes": [
-            {
+            {{
             "title": "Event Name",
             "days": ["MO", "TU"],
             "start_time": "HH:MM",
             "end_time": "HH:MM",
             "start_date": "YYYY-MM-DD",
             "end_date": "YYYY-MM-DD"
-            }
+            }}
         ]
-    }
+    }}
     """
     response = client.chat.completions.create(
         model="gpt-4o-mini",
